@@ -1,0 +1,8 @@
+{
+  "name": "Gioco Carro Armato",
+  "short_name": "GiocoCarro",
+  "start_url": "index.html",
+  "display": "fullscreen",
+  "description": "Un gioco con un carro armato che spara ai dinosauri.",
+  "version": "1.0.0"
+}
