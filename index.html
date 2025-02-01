@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gioco Carro Dinosauro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #contenitore-gioco {
+            width: 100vw;
+            height: 100vh;
+            background: url('sfondo.jpg') no-repeat center center/cover;
+            position: relative;
+        }
+        #carro {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90px;
+            height: 120px;
+            z-index: 1;
+        }
+        #lancetta {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform-origin: 25px 62px;
+            width: 47px;
+            height: 80px;
+            z-index: 3;
+        }
+        .missile {
+            position: absolute;
+            width: 25px;
+            height: 30px;
+            z-index: 2;
+        }
+        .dinosaur {
+            position: absolute;
+            z-index: 1;
+        }
+        .explosion {
+        position: absolute;
+        width: 300px; /* Puoi regolare la dimensione */
+        height: 300px; /* Puoi regolare la dimensione */
+        transform: translate(-50%, -50%); /* Centra l'immagine */
+        z-index: 2; /* Mostra sopra il dinosauro */
+        pointer-events: none; /* Impedisce interazioni */
+}
+    </style>
+</head>
+<body>
+    <div id="scoreboard" style="position: absolute; top: 10px; left: 10px; color: white; font-size: 18px; z-index: 10;">
+        <div id="score">Punteggio: 0</div>
+        <div id="record">Record: 0</div>
+    </div>
+
+    <div id="contenitore-gioco">
+        <img id="carro" src="carro.png" alt="Carro">
+        <img id="lancetta" src="lancetta.png" alt="Lancetta">
+    </div>
+
+    <script>
+        // Inizializzazione del gioco
+        console.log('Gioco avviato');
+
+        const needle = document.getElementById('lancetta');
+        const container = document.getElementById('contenitore-gioco');
+        let previousAngle = 0;
+
+// Inizializzazione punteggio e record
+let score = 0;
+let record = localStorage.getItem('record') || 0; // Recupera il record dal localStorage o inizializza a 0
+
+// Aggiorna la visualizzazione iniziale
+document.getElementById('score').textContent = `Punteggio: ${score}`;
+document.getElementById('record').textContent = `Record: ${record}`;
+
+// Funzione per aggiornare il punteggio
+function updateScore() {
+    score++;
+    document.getElementById('score').textContent = `Punteggio: ${score}`;
+
+    // Aggiorna il record se necessario
+    if (score > record) {
+        record = score;
+        localStorage.setItem('record', record); // Salva il nuovo record nel localStorage
+        document.getElementById('record').textContent = `Record: ${record}`;
+    }
+}
+
+// Esempio: Chiama `updateScore()` quando un dinosauro viene rimosso
+function hitDinosaur(dinosaur) {
+    let health = parseInt(dinosaur.getAttribute('data-health'), 10);
+    health -= 1;
+    dinosaur.setAttribute('data-health', health);
+
+    if (health <= 0) {
+        dinosaur.remove();
+        dinosaurs = dinosaurs.filter(d => d !== dinosaur);
+
+        // Aumenta il punteggio
+        updateScore();
+    }
+}
+
+        // Dati per i dinosauri
+        const dinosaurData = {
+            'dinosauri/trex.png': { health: 3, size: 270, speed: 2 },
+            'dinosauri/velociraptor.png': { health: 2, size: 140, speed: 1.6 },
+            'dinosauri/stegosauro.png': { health: 1, size: 130, speed: 1.2 },
+            'dinosauri/spinosauro.png': { health: 3, size: 240, speed: 2 },
+            'dinosauri/triceratopo.png': { health: 1, size: 100, speed: 1.3 },
+            'dinosauri/pachy.png': { health: 1, size: 110, speed: 1.5 },
+            'dinosauri/allosauro.png': { health: 2, size: 160, speed: 1.7 }
+        };
+
+        const dinosaurImages = Object.keys(dinosaurData);
+        let spawnInterval = 8000; // Intervallo iniziale
+        const minSpawnInterval = 1000; // Intervallo minimo
+        const spawnReduction = 200; // Riduzione a ogni generazione
+
+
+        let dinosaurs = [];
+
+        // Funzione per generare un dinosauro
+        function spawnDinosaur() {
+            const randomImage = dinosaurImages[Math.floor(Math.random() * dinosaurImages.length)];
+            const { health, size, speed } = dinosaurData[randomImage];
+
+            const dinosaur = document.createElement('img');
+            dinosaur.src = randomImage;
+            dinosaur.className = 'dinosaur';
+            dinosaur.style.width = `${size}px`;
+            dinosaur.style.height = 'auto';
+
+            dinosaur.setAttribute('data-health', health);
+            dinosaur.setAttribute('data-speed', speed);
+
+            // Posizione casuale fuori dallo schermo
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+
+            switch (side) {
+                case 0: x = Math.random() * screenWidth; y = -size; break; // Sopra
+                case 1: x = screenWidth + size; y = Math.random() * screenHeight; break; // Destra
+                case 2: x = Math.random() * screenWidth; y = screenHeight + size; break; // Sotto
+                case 3: x = -size; y = Math.random() * screenHeight; break; // Sinistra
+            }
+
+            dinosaur.style.left = `${x}px`;
+            dinosaur.style.top = `${y}px`;
+            container.appendChild(dinosaur);
+
+            dinosaurs.push(dinosaur);
+
+            moveDinosaur(dinosaur, x, y, speed);
+        }
+
+        // Genera dinosauri con frequenza dinamica
+        function spawnDinosaurWithIncreasingFrequency() {
+            spawnDinosaur(); // Genera un dinosauro
+
+            // Riduci l'intervallo, ma non andare sotto il minimo
+            spawnInterval = Math.max(minSpawnInterval, spawnInterval - spawnReduction);
+
+            // Richiama la funzione ricorsivamente con il nuovo intervallo
+            setTimeout(spawnDinosaurWithIncreasingFrequency, spawnInterval);
+        }
+
+        // Avvia la generazione dinamica
+        spawnDinosaurWithIncreasingFrequency();
+
+         // Funzione per muovere il dinosauro verso il centro e aggiornare la direzione
+function moveDinosaur(dinosaur, x, y, speed) {
+    const centerX = (window.innerWidth / 2) -90;
+    const centerY = window.innerHeight / 2;
+
+    dinosaur.isRemoved = false;
+
+    // Funzione per muovere il dinosauro
+    function move() {
+        
+        if (dinosaur.isRemoved) return;
+
+        console.log(`Dinosauro: X=${x}, Y=${y}`);
+
+        const dx = centerX - x;
+        const dy = centerY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+       
+        // Calcolare l'angolo tra il dinosauro e il centro
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+        // Ruota il dinosauro verso il centro
+        dinosaur.style.transform = `rotate(${angle}deg)`;
+
+        // Muovere il dinosauro verso il centro
+        x += Math.cos(angle * (Math.PI / 180)) * speed;
+        y += Math.sin(angle * (Math.PI / 180)) * speed;
+
+        dinosaur.style.left = `${x}px`;
+        dinosaur.style.top = `${y}px`;
+
+        // Se il dinosauro è abbastanza vicino al centro, fermiamo il movimento
+         if (distance <= 2 && !dinosaur.hasReachedCenter) {
+            dinosaur.hasReachedCenter = true; 
+            showGameOver();  // Mostra Game Over
+            dinosaur.remove(); // Rimuovi il dinosauro
+            dinosaur.isRemoved = true;
+         } else {
+            requestAnimationFrame(move);     
+         }
+    }
+
+    requestAnimationFrame(move);  // Avvia il movimento del dinosauro
+}
+
+// Funzione per mostrare l'immagine di Game Over
+function showGameOver() {
+    const gameOverImage = document.createElement('img');
+    gameOverImage.src = 'gameover.png';  // Assicurati che il percorso dell'immagine sia corretto
+    gameOverImage.style.position = 'absolute';
+    gameOverImage.style.left = '50%';
+    gameOverImage.style.top = '50%';
+    gameOverImage.style.transform = 'translate(-50%, -50%)';
+    gameOverImage.style.zIndex = '100';  // Assicurati che l'immagine di Game Over sia visibile sopra gli altri elementi
+
+    container.appendChild(gameOverImage);
+
+    // Puoi anche aggiungere una pausa o fermare ulteriori movimenti nel gioco, se necessario
+}
+
+        // Funzione per ridurre la vita del dinosauro quando colpito
+        function hitDinosaur(dinosaur) {
+            let health = parseInt(dinosaur.getAttribute('data-health'), 10);
+            health -= 1;
+            dinosaur.setAttribute('data-health', health);
+
+            if (health <= 0) {
+                dinosaur.remove();
+                dinosaurs = dinosaurs.filter(d => d !== dinosaur);
+                updateScore();
+
+                dinosaur.isRemoved = true;
+            }
+        }
+
+  // Funzione per creare un'esplosione
+    function createExplosion(x, y, missile) {
+        missile.remove(); // Rimuovi il missile
+
+        const explosion = document.createElement('img');
+        explosion.src = 'fuoco1.png'; // Prima immagine della sequenza
+        explosion.className = 'explosion'; // Applica lo stile della classe CSS
+        explosion.style.left = `${x}px`;
+        explosion.style.top = `${y}px`;
+
+        container.appendChild(explosion);
+
+        // Animazione dell'esplosione
+        let frame = 1;
+        const explosionInterval = setInterval(() => {
+            frame += 1;
+            if (frame > 11) {
+                explosion.remove(); // Rimuovi l'esplosione alla fine
+                clearInterval(explosionInterval);
+            } else {
+                explosion.src = `fuoco${frame}.png`; // Cambia l'immagine
+            }
+        }, 100); // Cambia immagine ogni 50ms
+    }
+
+        // Funzione per sparare i missili
+        function shootMissile() {
+            const missile = document.createElement('img');
+            missile.src = 'missile.png';
+            missile.className = 'missile';
+
+            const rect = needle.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            const length = 40;
+            const angleRad = (previousAngle - 90) * (Math.PI / 180);
+
+            const missileX = centerX + Math.cos(angleRad) * length;
+            const missileY = centerY + Math.sin(angleRad) * length;
+
+            missile.style.left = `${missileX - container.offsetLeft}px`;
+            missile.style.top = `${missileY - container.offsetTop}px`;
+            missile.style.transformOrigin = '50% 90%';
+            missile.style.transform = `translate(-50%, -100%) rotate(${previousAngle}deg)`;
+
+            container.appendChild(missile);
+
+            const speed = 2;
+            let posX = missileX;
+            let posY = missileY;
+
+            function moveMissile() {
+                posX += Math.cos(angleRad) * speed;
+                posY += Math.sin(angleRad) * speed;
+                missile.style.left = `${posX}px`;
+                missile.style.top = `${posY}px`;
+
+                // Controlla la collisione con i dinosauri
+                dinosaurs.forEach(dinosaur => {
+                    const dRect = dinosaur.getBoundingClientRect();
+                    const mRect = missile.getBoundingClientRect();
+
+                    if (mRect.left < dRect.right &&
+                        mRect.right > dRect.left &&
+                        mRect.top < dRect.bottom &&
+                        mRect.bottom > dRect.top) {
+                        hitDinosaur(dinosaur);
+                        createExplosion(posX, posY, missile); // Esplosione
+                    }
+                });
+
+                if (posY > 0 && posX > 0 && posY < window.innerHeight && posX < window.innerWidth) {
+                    requestAnimationFrame(moveMissile);
+                } else {
+                    missile.remove();
+                }
+            }
+            requestAnimationFrame(moveMissile);
+        }
+
+        // Event listeners
+        document.addEventListener('mousemove', (event) => {
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            const deltaX = event.clientX - centerX;
+            const deltaY = event.clientY - centerY;
+
+            let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI) + 90;
+            angle = (angle + 360) % 360;
+
+            const deltaAngle = ((angle - previousAngle + 540) % 360) - 180;
+            previousAngle += deltaAngle;
+
+            needle.style.transform = `translate(-50%, -100%) rotate(${previousAngle}deg)`;
+        });
+
+        document.addEventListener('click', () => {
+            shootMissile();
+        });
+
+</script>
+</body>
+</html>
+
